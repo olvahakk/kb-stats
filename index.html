@@ -49,6 +49,8 @@ select:focus,input:focus,button:focus{outline:2px solid var(--void);outline-offs
 .chip.on.c2{background:var(--p2);color:var(--ink)}
 .chip.on.c3{background:var(--p3);color:var(--night)}
 .chip.on.c4{background:var(--p4);color:var(--night)}
+.chip.ex{opacity:.4;text-decoration:line-through}
+#causeChips{display:flex;flex-wrap:wrap;gap:6px;max-width:100%}
 .reset{background:none;border:none;color:var(--muted);font-size:13px;cursor:pointer;text-decoration:underline;padding:8px 0}
 
 /* cards */
@@ -110,12 +112,13 @@ tr:hover td{background:rgba(141,124,224,.06)}
     <p class="small">Jokainen piste on yhden raidi-illan paras pulli. Kultainen piste on tuorein ilta. Phase-rajat on arvioitu datasta.</p>
 
     <div class="filters">
+      <div class="f"><label for="bossSel">Bossi</label><select id="bossSel"></select></div>
       <div class="f"><label for="nightFrom">Alkaen</label><select id="nightFrom"></select></div>
       <div class="f"><label for="nightTo">Asti</label><select id="nightTo"></select></div>
       <div class="f"><label>Phase</label>
         <div class="chips" id="phaseChips"></div>
       </div>
-      <div class="f"><label for="causeQ">Syyhaku</label><input type="text" id="causeQ" placeholder="esim. starsplinter" size="16"></div>
+      <div class="f"><label for="causeQ">Haku (syy tai pelaaja)</label><input type="text" id="causeQ" placeholder="esim. starsplinter" size="16"></div>
       <div class="f"><button class="reset" id="resetBtn">Tyhjennä suodattimet</button></div>
     </div>
 
@@ -141,6 +144,8 @@ tr:hover td{background:rgba(141,124,224,.06)}
       <div class="filters" style="margin-top:0">
         <div class="f"><label for="minPulls">Väh. pulleja: <span id="minPullsVal" class="num"></span></label>
           <input type="range" id="minPulls" min="1" max="200" step="1" value="20" style="width:180px"></div>
+        <div class="f" style="flex:1;min-width:280px"><label>Kuolinsyyt (klikkaa pois/takaisin)</label>
+          <div id="causeChips"></div></div>
         <div class="f small" id="playersMeta" style="max-width:520px"></div>
       </div>
       <div class="tablebox"><table id="playerTable"></table></div>
@@ -163,7 +168,22 @@ const CLASS_COLORS = {Warrior:'#C69B6D',Paladin:'#F48CBA',Hunter:'#AAD372',Rogue
   DeathKnight:'#C41E3A',Shaman:'#0070DD',Mage:'#3FC7EB',Warlock:'#8788EE',Monk:'#00FF98',
   Druid:'#FF7C0A',DemonHunter:'#A330C9',Evoker:'#33937F'};
 
-let DATA=null, WIPES=[], state={from:null,to:null,phases:new Set(),causeQ:'',minPulls:20,pSort:{key:'first3_per_100_pulls',dir:-1}};
+function readHash(){
+  const out={};
+  for(const part of location.hash.replace(/^#/,'').split('&')){
+    const [k,v]=part.split('=');
+    if(k&&v!=null) out[k]=decodeURIComponent(v);
+  }
+  return out;
+}
+function syncHash(){
+  const h=['boss='+encodeURIComponent(state.boss)];
+  if(state.phases.size) h.push('p='+[...state.phases].join(','));
+  if(state.causeQ) h.push('q='+encodeURIComponent(state.causeQ));
+  h.push('from='+state.from,'to='+state.to);
+  history.replaceState(null,'','#'+h.join('&'));
+}
+let DATA=null, WIPES=[], state={boss:null,from:null,to:null,phases:new Set(),causeQ:'',minPulls:20,pSort:{key:'first3_per_100_pulls',dir:-1},wSort:{key:'time',dir:1},exCauses:new Set()};
 let phaseChart=null;
 
 function parseFirstDeaths(s){ if(!s) return [];
@@ -185,74 +205,122 @@ async function boot(){
   }
 }
 
+function bossPlayers(){
+  if(DATA.players_by_boss) return DATA.players_by_boss[state.boss]||[];
+  return DATA.players||[];
+}
+
+function bossWipes(){ return WIPES.filter(w=>w.boss===state.boss); }
+
 function init(data){
   DATA=data;
   WIPES=(data.wipes||[]).map(w=>({...w,night:w.time.slice(0,10),
     first:parseFirstDeaths(w.first_deaths),all:parseAllDeaths(w.deaths_by_ability),
     progress:w.fight_pct_left!=null?100-w.fight_pct_left:null}));
-  const boss=WIPES[0]?WIPES[0].boss:'?';
+
+  const counts={};
+  WIPES.forEach(w=>counts[w.boss]=(counts[w.boss]||0)+1);
+  const bosses=Object.keys(counts).sort((a,b)=>counts[b]-counts[a]);
+  const bs=document.getElementById('bossSel');
+  bs.innerHTML=bosses.map(b=>`<option value="${b}">${b} (${counts[b]})</option>`).join('');
+  bs.addEventListener('change',()=>setBoss(bs.value));
+
+  document.getElementById('causeQ').addEventListener('input',e=>{state.causeQ=e.target.value.toLowerCase();render();});
+  document.getElementById('resetBtn').addEventListener('click',()=>{
+    state.phases.clear();state.causeQ='';document.getElementById('causeQ').value='';
+    const nights=[...new Set(bossWipes().map(w=>w.night))].sort();
+    state.from=nights[0];state.to=nights.at(-1);
+    document.getElementById('nightFrom').value=nights[0];
+    document.getElementById('nightTo').value=nights.at(-1);render();});
+
+  const m=DATA.players_meta||{};
+  document.getElementById('playersMeta').textContent=
+    `Ohitettu raid-wide-syyt: ${(m.ignored_causes||[]).join(', ')||'-'} · `+
+    `ohitettu ${m.simul_skipped_wipes??'?'} wipeä joissa koko raidi kuoli ${m.simul_window_s??'?'} s sisään (järjestys mielivaltainen).`;
+  document.getElementById('minPulls').addEventListener('input',e=>{
+    state.minPulls=+e.target.value;renderPlayers();});
+
+  document.getElementById('app').style.display='block';
+  const nights=[...new Set(WIPES.map(w=>w.night))].sort();
+  document.getElementById('foot').textContent=
+    `Data: Warcraft Logs · ${WIPES.length} wipeä · päivitetty ${nights.at(-1)} · sivu ei hae mitään verkosta paitsi wipes.json ja Chart.js`;
+  const h=readHash();
+  setBoss(bosses.includes(h.boss)?h.boss:bosses[0]);
+  if(h.boss&&bosses.includes(h.boss)){
+    const BW=bossWipes();
+    const nights2=[...new Set(BW.map(w=>w.night))].sort();
+    if(h.from&&nights2.includes(h.from)){state.from=h.from;document.getElementById('nightFrom').value=h.from;}
+    if(h.to&&nights2.includes(h.to)){state.to=h.to;document.getElementById('nightTo').value=h.to;}
+    if(h.p) h.p.split(',').forEach(x=>state.phases.add(+x));
+    if(h.q){state.causeQ=h.q.toLowerCase();document.getElementById('causeQ').value=h.q;}
+    render();
+  }
+}
+
+function setBoss(boss){
+  state.boss=boss;
+  state.phases.clear(); state.causeQ='';
+  document.getElementById('causeQ').value='';
+  const BW=bossWipes();
+
   const parts=boss.split(' ');
   document.getElementById('title').innerHTML=parts.length>1
     ? parts.slice(0,-1).join(' ')+' <span class="accent">'+parts.at(-1)+'</span>' : boss;
   document.title=boss+' — wipe-tilastot';
-  const diffs=[...new Set(WIPES.map(w=>w.difficulty))].join(', ');
+  const diffs=[...new Set(BW.map(w=>w.difficulty))].join(', ');
   document.getElementById('guildLine').textContent='käsipainoilla bodaus · Stormreaver EU · '+diffs;
 
-  const nights=[...new Set(WIPES.map(w=>w.night))].sort();
+  const nights=[...new Set(BW.map(w=>w.night))].sort();
   for(const id of ['nightFrom','nightTo']){
     const sel=document.getElementById(id);
+    sel.onchange=null;
     sel.innerHTML=nights.map(n=>`<option value="${n}">${n}</option>`).join('');
-    sel.addEventListener('change',()=>{state.from=document.getElementById('nightFrom').value;
-      state.to=document.getElementById('nightTo').value;render();});
+    sel.onchange=()=>{state.from=document.getElementById('nightFrom').value;
+      state.to=document.getElementById('nightTo').value;render();};
   }
+  document.getElementById('nightFrom').value=nights[0];
   document.getElementById('nightTo').value=nights.at(-1);
   state.from=nights[0]; state.to=nights.at(-1);
 
-  const phases=[...new Set(WIPES.map(w=>w.phase))].sort();
+  const phases=[...new Set(BW.map(w=>w.phase))].sort((a,b)=>a-b);
   const chipBox=document.getElementById('phaseChips');
-  chipBox.innerHTML=phases.map(p=>`<button class="chip c${p}" data-p="${p}">P${p}</button>`).join('');
+  chipBox.innerHTML=phases.map(p=>`<button class="chip c${Math.min(p,4)}" data-p="${p}">P${p}</button>`).join('');
   chipBox.querySelectorAll('.chip').forEach(c=>c.addEventListener('click',()=>{
     const p=+c.dataset.p;
     state.phases.has(p)?state.phases.delete(p):state.phases.add(p);
     render();}));
 
-  document.getElementById('causeQ').addEventListener('input',e=>{state.causeQ=e.target.value.toLowerCase();render();});
-  document.getElementById('resetBtn').addEventListener('click',()=>{
-    state.phases.clear();state.causeQ='';document.getElementById('causeQ').value='';
-    state.from=nights[0];state.to=nights.at(-1);
-    document.getElementById('nightFrom').value=nights[0];
-    document.getElementById('nightTo').value=nights.at(-1);render();});
-
-  const mp=document.getElementById('minPulls');
-  if(DATA.players&&DATA.players.length){
-    const maxP=Math.max(...DATA.players.map(p=>p.pulls));
-    mp.max=maxP; state.minPulls=Math.min(20,maxP);
-    mp.value=state.minPulls;
-    mp.addEventListener('input',()=>{state.minPulls=+mp.value;renderPlayers();});
-    const m=DATA.players_meta||{};
-    document.getElementById('playersMeta').textContent=
-      `Ohitettu raid-wide-syyt: ${(m.ignored_causes||[]).join(', ')||'-'} · `+
-      `ohitettu ${m.simul_skipped_wipes??'?'} wipeä joissa koko raidi kuoli ${m.simul_window_s??'?'} s sisään (järjestys mielivaltainen).`;
+  const players=bossPlayers();
+  const psec=document.getElementById('playersSection');
+  if(players.length){
+    psec.style.display='block';
+    const mp=document.getElementById('minPulls');
+    const maxP=Math.max(...players.map(p=>p.pulls));
+    mp.max=maxP; state.minPulls=Math.min(20,maxP); mp.value=state.minPulls;
+    buildCauseChips();
   }else{
-    document.getElementById('playersSection').style.display='none';
+    psec.style.display='none';
   }
 
-  document.getElementById('app').style.display='block';
+  state.wSort={key:'time',dir:1};
   renderProgMap(); render();
-  document.getElementById('foot').textContent=
-    `Data: Warcraft Logs · ${WIPES.length} wipeä · päivitetty ${nights.at(-1)} · sivu ei hae mitään verkosta paitsi wipes.json ja Chart.js`;
 }
 
 function filtered(){
   return WIPES.filter(w=>
+    w.boss===state.boss &&
     w.night>=state.from && w.night<=state.to &&
     (state.phases.size===0||state.phases.has(w.phase)) &&
-    (!state.causeQ || w.first.some(f=>f.cause.toLowerCase().includes(state.causeQ))
+    (!state.causeQ || w.first.some(f=>f.cause.toLowerCase().includes(state.causeQ)
+                                       ||f.player.toLowerCase().includes(state.causeQ))
                    || w.all.some(a=>a.cause.toLowerCase().includes(state.causeQ))));
 }
 
 function renderProgMap(){
-  const withP=WIPES.filter(w=>w.progress!=null);
+  const withP=bossWipes().filter(w=>w.progress!=null);
+  const box=document.querySelector('.progmap');
+  if(!withP.length){ box.style.display='none'; return; }
+  box.style.display='block';
   const phases=[...new Set(withP.map(w=>w.phase))].sort((a,b)=>a-b);
   const bounds=[];
   let prev=0;
@@ -269,8 +337,9 @@ function renderProgMap(){
     bounds.push({p,start:prev,end}); prev=end;
   });
   const track=document.getElementById('track');
+  const segc=p=>PHASE_COLORS[Math.min(p,4)]||'#8b8fa3';
   track.innerHTML=bounds.map(b=>
-    `<div class="seg" style="width:${b.end-b.start}%;background:${PHASE_COLORS[b.p]}22"><span class="lbl" style="color:${PHASE_COLORS[b.p]}">P${b.p}</span></div>`
+    `<div class="seg" style="width:${b.end-b.start}%;background:${segc(b.p)}22"><span class="lbl" style="color:${segc(b.p)}">P${b.p}</span></div>`
   ).join('')+'<div class="kill" title="Kaato"></div>';
 
   const byNight={};
@@ -303,12 +372,13 @@ function render(){
     <div class="card"><div class="k">Kuolemia</div><div class="v">${deaths.toLocaleString('fi')}</div></div>
     <div class="card"><div class="k">Pullin kesto ka.</div><div class="v">${Math.floor(avgDur/60)}<em>m</em>${String(avgDur%60).padStart(2,'0')}<em>s</em></div></div>`;
 
-  const phases=[...new Set(WIPES.map(w=>w.phase))].sort((a,b)=>a-b);
+  const phases=[...new Set(bossWipes().map(w=>w.phase))].sort((a,b)=>a-b);
+  const pcolor=p=>PHASE_COLORS[Math.min(p,4)]||'#8b8fa3';
   const dsets=phases.map(p=>({label:'P'+p,data:nights.map(n=>W.filter(w=>w.night===n&&w.phase===p).length),
-    backgroundColor:PHASE_COLORS[p],stack:'s'}));
+    backgroundColor:pcolor(p),stack:'s'}));
   document.getElementById('phaseLegend').innerHTML=phases.map(p=>{
     const tot=W.filter(w=>w.phase===p).length;
-    return `<span><span class="sw" style="background:${PHASE_COLORS[p]}"></span>P${p} · ${tot}</span>`;}).join('');
+    return `<span><span class="sw" style="background:${pcolor(p)}"></span>P${p} · ${tot}</span>`;}).join('');
   const labels=nights.map(n=>n.slice(8,10)+'.'+String(+n.slice(5,7))+'.');
   if(phaseChart) phaseChart.destroy();
   phaseChart=new Chart(document.getElementById('phaseChart'),{type:'bar',
@@ -344,24 +414,91 @@ function render(){
   document.getElementById('nightTable').innerHTML=
     `<tr><th class="noclick">Ilta</th><th class="noclick">Pullit</th><th class="noclick">Paras</th><th class="noclick">Top-syyt (ekat 3 kuolemaa)</th></tr>`+nrows.join('');
 
-  const wrows=W.slice().reverse().map(w=>
+  renderWipeTable(W);
+  renderPlayers();
+  syncHash();
+}
+
+function wclUrl(w){
+  const base='https://www.warcraftlogs.com/reports/'+w.report;
+  return w.fight_id!=null?base+'#fight='+w.fight_id:base;
+}
+
+function renderWipeTable(W){
+  const cols=[['time','Aika'],['phase','Phase'],['boss_hp_pct','Boss HP'],['duration_s','Kesto'],['_first','Ekat kuolemat'],['_wcl','Logi']];
+  const {key,dir}=state.wSort;
+  const rows=W.slice().sort((a,b)=>{
+    const x=a[key],y=b[key];
+    if(typeof x==='string') return dir*String(x).localeCompare(String(y));
+    return dir*((x??-1)-(y??-1));});
+  const head=cols.map(([k,label])=>k.startsWith('_')
+    ? `<th class="noclick">${label}</th>`
+    : `<th data-k="${k}">${label}${key===k?(dir<0?' ▾':' ▴'):''}</th>`).join('');
+  const body=rows.map(w=>
     `<tr><td class="num">${w.time}</td><td class="num">P${w.phase}</td>
      <td class="num">${w.boss_hp_pct!=null?w.boss_hp_pct.toFixed(0)+'%':'-'}</td>
      <td class="num">${Math.floor(w.duration_s/60)}:${String(w.duration_s%60).padStart(2,'0')}</td>
      <td class="wide">${w.first.map(f=>`${f.player} <span class="small">(${f.cause})</span>`).join('; ')}</td>
-     <td class="num">${w.total_deaths}</td></tr>`);
-  document.getElementById('wipeTable').innerHTML=
-    `<tr><th class="noclick">Aika</th><th class="noclick">Phase</th><th class="noclick">Boss HP</th><th class="noclick">Kesto</th><th class="noclick">Ekat kuolemat</th><th class="noclick">Kuol.</th></tr>`+wrows.join('');
+     <td class="num"><a href="${wclUrl(w)}" target="_blank" rel="noopener">WCL ↗</a></td></tr>`).join('');
+  const t=document.getElementById('wipeTable');
+  t.innerHTML=`<tr>${head}</tr>${body}`;
+  t.querySelectorAll('th[data-k]').forEach(th=>th.addEventListener('click',()=>{
+    const k=th.dataset.k;
+    state.wSort=state.wSort.key===k?{key:k,dir:-state.wSort.dir}:{key:k,dir:1};
+    renderWipeTable(filtered());}));
+}
 
-  renderPlayers();
+function buildCauseChips(){
+  const box=document.getElementById('causeChips');
+  const meta=DATA.players_meta||{};
+  const ignored=new Set(meta.ignored_causes||[]);
+  const counts={};
+  for(const w of bossWipes()){
+    if(w.simul) continue;
+    for(const f of w.first) counts[f.cause]=(counts[f.cause]||0)+1;
+  }
+  state.exCauses=new Set([...ignored].filter(c=>counts[c]));
+  const causes=Object.entries(counts).sort((a,b)=>b[1]-a[1]);
+  box.innerHTML=causes.map(([c,n])=>
+    `<button class="chip${state.exCauses.has(c)?' ex':' on c3'}" data-c="${c.replace(/"/g,'&quot;')}">${c} · ${n}</button>`).join('');
+  box.querySelectorAll('.chip').forEach(ch=>ch.addEventListener('click',()=>{
+    const c=ch.dataset.c;
+    state.exCauses.has(c)?state.exCauses.delete(c):state.exCauses.add(c);
+    ch.classList.toggle('ex');ch.classList.toggle('on');ch.classList.toggle('c3');
+    renderPlayers();}));
+}
+
+function computePlayerRows(){
+  const players=bossPlayers();
+  const hasSimul=bossWipes().some(w=>'simul' in w);
+  if(!hasSimul) return players;
+
+  const cnt={},mech={};
+  for(const w of bossWipes()){
+    if(w.simul) continue;
+    for(const f of w.first){
+      if(state.exCauses.has(f.cause)) continue;
+      cnt[f.player]=(cnt[f.player]||0)+1;
+      (mech[f.player]=mech[f.player]||{})[f.cause]=(mech[f.player][f.cause]||0)+1;
+    }
+  }
+  return players.map(p=>{
+    const c=cnt[p.player]||0;
+    const top=Object.entries(mech[p.player]||{}).sort((a,b)=>b[1]-a[1]).slice(0,3)
+      .map(([k,v])=>`${k} x${v}`).join('; ');
+    return {...p,first3_deaths:c,
+      first3_per_100_pulls:p.pulls?Math.round(1000*c/p.pulls)/10:0,
+      top_killers:top};
+  });
 }
 
 function renderPlayers(){
-  if(!DATA.players||!DATA.players.length) return;
+  const players=bossPlayers();
+  if(!players.length) return;
   document.getElementById('minPullsVal').textContent=state.minPulls;
   const cols=[['player','Pelaaja'],['pulls','Pullit'],['first3_deaths','Top3-kuol.'],
     ['first3_per_100_pulls','Per 100 pullia'],['avg_death_position_pct','Kuolinsija %'],['top_killers','Top-tappajat']];
-  let rows=DATA.players.filter(p=>p.pulls>=state.minPulls);
+  let rows=computePlayerRows().filter(p=>p.pulls>=state.minPulls);
   const {key,dir}=state.pSort;
   rows.sort((a,b)=>{const x=a[key],y=b[key];
     if(typeof x==='string') return dir*String(x).localeCompare(String(y),'fi');
