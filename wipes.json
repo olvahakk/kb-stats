@@ -848,20 +848,6 @@
         "Midnight Manifestation": 1,
         "Grappling Maw": 1
       }
-    },
-    "Skyreach [diff10]": {
-      "wipes": 1,
-      "best_pull": {
-        "fight_pct_left": 55.22,
-        "phase": 0,
-        "boss_hp_pct": 0
-      },
-      "wipe_causes_first_deaths": {
-        "Chakram Vortex": 1
-      },
-      "deaths_by_ability": {
-        "Chakram Vortex": 1
-      }
     }
   },
   "wipes": [
