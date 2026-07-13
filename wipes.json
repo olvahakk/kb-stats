@@ -288,13 +288,13 @@
         "Voidbolt": 8,
         "Gloom": 4,
         "Nullscatter": 4,
-        "Vaelwing": 3,
         "Nullbeam": 3,
+        "Vaelwing": 3,
         "Tail Lash": 2,
         "Gloomfield": 2,
         "Melee": 1,
-        "Stretch Time": 1,
         "Falling": 1,
+        "Stretch Time": 1,
         "Rakfang": 1,
         "Nullsnap": 1,
         "Midnight Flames": 1
@@ -338,8 +338,8 @@
         "Tuntematon": 3,
         "Cannibalized Essence": 3,
         "Colossal Strikes": 3,
-        "Corrupted Devastation": 2,
         "Lingering Miasma": 2,
+        "Corrupted Devastation": 2,
         "Rending Tear": 1,
         "Alndust Upheaval": 1,
         "Alndust Essence": 1
@@ -447,8 +447,8 @@
         "Awaken Fungi": 3,
         "Rotting Pustules": 2,
         "Putrid Fist": 2,
-        "Writhing Vines": 2,
         "Bursting Shroom": 2,
+        "Writhing Vines": 2,
         "Poison Burst": 1
       },
       "deaths_by_ability": {
