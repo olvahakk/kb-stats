@@ -94,8 +94,8 @@
         "Melee": 4,
         "Light Infusion": 3,
         "Executed": 2,
-        "Divine Consecration": 2,
         "Exorcism": 2,
+        "Divine Consecration": 2,
         "Time Dilation": 2
       },
       "deaths_by_ability": {
@@ -130,8 +130,8 @@
       "wipe_causes_first_deaths": {
         "Voidlight Rupture": 46,
         "Light Dive": 25,
-        "Void Dive": 15,
         "Light Edict": 15,
+        "Void Dive": 15,
         "Void Flames": 12,
         "Light Flames": 11,
         "Light Echo": 10,
@@ -293,8 +293,8 @@
         "Voidbolt": 7,
         "Gloom": 4,
         "Nullscatter": 4,
-        "Vaelwing": 3,
         "Nullbeam": 3,
+        "Vaelwing": 3,
         "Tail Lash": 2,
         "Gloomfield": 2,
         "Melee": 1,
@@ -670,8 +670,8 @@
       "wipe_causes_first_deaths": {
         "Dark Upheaval": 5,
         "Umbral Collapse": 1,
-        "Void Fall": 1,
-        "Melee": 1
+        "Melee": 1,
+        "Void Fall": 1
       },
       "deaths_by_ability": {
         "Dark Upheaval": 46,
@@ -729,9 +729,9 @@
       },
       "wipe_causes_first_deaths": {
         "Echoing Darkness": 2,
-        "Rift Slash": 1,
-        "Void Remnants": 1,
         "Bursting Emptiness": 1,
+        "Void Remnants": 1,
+        "Rift Slash": 1,
         "Melee": 1,
         "Void Expulsion": 1
       },
@@ -758,8 +758,8 @@
         "boss_hp_pct": 64.63
       },
       "wipe_causes_first_deaths": {
-        "Tuntematon": 1,
         "Melee": 1,
+        "Tuntematon": 1,
         "Rift Miasma": 1,
         "Rift Emergence": 1,
         "Caustic Phlegm": 1
@@ -783,9 +783,9 @@
       "wipe_causes_first_deaths": {
         "Consume": 1,
         "Colossal Strikes": 1,
-        "Lingering Miasma": 1,
+        "Rending Tear": 1,
         "Alndust Essence": 1,
-        "Rending Tear": 1
+        "Lingering Miasma": 1
       },
       "deaths_by_ability": {
         "Consume": 18,
@@ -836,8 +836,8 @@
         "boss_hp_pct": 40.96
       },
       "wipe_causes_first_deaths": {
-        "Void Howl": 1,
-        "Gloomtouched": 1
+        "Gloomtouched": 1,
+        "Void Howl": 1
       },
       "deaths_by_ability": {
         "Void Howl": 4,
@@ -5185,21 +5185,6 @@
       "first_deaths": "Kaidron (Searing Radiance); Hutikkash (Execution Sentence); Lahti (Execution Sentence)",
       "total_deaths": 20,
       "deaths_by_ability": "Divine Hammer x5; Execution Sentence x3; Avenger's Shield x3; Blinding Light x3; Divine Toll x2; Melee x2; Searing Radiance x1; Executed x1"
-    },
-    {
-      "report": "mRj2AhHKNXgtV1dT",
-      "fight_id": 51,
-      "simul": false,
-      "boss": "Skyreach",
-      "difficulty": "diff10",
-      "time": "2026-04-19 21:41",
-      "duration_s": 477,
-      "fight_pct_left": 55.22,
-      "boss_hp_pct": 0,
-      "phase": 0,
-      "first_deaths": "Kädetön (Chakram Vortex)",
-      "total_deaths": 1,
-      "deaths_by_ability": "Chakram Vortex x1"
     },
     {
       "report": "p1jmXrMfFhHtqb8z",
