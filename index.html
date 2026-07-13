@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="fi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Midnight Falls — wipe-tilastot</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --night:#0d0e13; --panel:#151725; --panel2:#1c1f30; --line:#272b40;
+  --ink:#e9e4d6; --muted:#8b8fa3; --gold:#deb05a; --void:#8d7ce0; --ember:#d9695a;
+  --p1:#3d4266; --p2:#5a5fa0; --p3:#8d7ce0; --p4:#deb05a;
+  --mono:'IBM Plex Mono',monospace; --sans:'IBM Plex Sans',sans-serif;
+}
+*{box-sizing:border-box;margin:0}
+body{background:var(--night);color:var(--ink);font-family:var(--sans);font-size:15px;line-height:1.6}
+.wrap{max-width:1060px;margin:0 auto;padding:32px 20px 80px}
+a{color:var(--gold)}
+.eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted)}
+h1{font-family:'Cinzel',serif;font-weight:700;font-size:clamp(28px,5vw,44px);letter-spacing:.02em;margin:6px 0 4px;color:var(--ink)}
+h1 .accent{color:var(--gold)}
+.sub{color:var(--muted);margin-bottom:28px}
+h2{font-size:13px;font-family:var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin:40px 0 14px;display:flex;align-items:center;gap:12px}
+h2::after{content:"";flex:1;height:1px;background:var(--line)}
+.small{font-size:12.5px;color:var(--muted)}
+
+/* progress map */
+.progmap{margin:10px 0 6px}
+.track{position:relative;height:64px;border-radius:6px;overflow:visible;display:flex;border:1px solid var(--line)}
+.seg{position:relative;height:100%}
+.seg+.seg{border-left:1px dashed rgba(233,228,214,.25)}
+.seg .lbl{position:absolute;top:6px;left:8px;font-family:var(--mono);font-size:11px;color:rgba(233,228,214,.85)}
+.dot{position:absolute;bottom:8px;width:10px;height:10px;border-radius:50%;transform:translateX(-50%);background:var(--ink);opacity:.45;cursor:default}
+.dot.latest{width:14px;height:14px;opacity:1;background:var(--gold);box-shadow:0 0 12px rgba(222,176,90,.8);bottom:6px}
+.kill{position:absolute;right:-1px;top:-8px;bottom:-8px;width:2px;background:var(--gold)}
+.maplegend{display:flex;justify-content:space-between;font-family:var(--mono);font-size:11.5px;color:var(--muted);margin-top:6px}
+
+/* filters */
+.filters{display:flex;flex-wrap:wrap;gap:14px 22px;align-items:end;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px 18px;margin-top:26px}
+.f label{display:block;font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:5px}
+select,input[type=text]{background:var(--panel2);color:var(--ink);border:1px solid var(--line);border-radius:6px;padding:7px 10px;font-family:var(--sans);font-size:14px}
+select:focus,input:focus,button:focus{outline:2px solid var(--void);outline-offset:1px}
+.chips{display:flex;gap:6px}
+.chip{background:var(--panel2);border:1px solid var(--line);color:var(--muted);border-radius:6px;padding:6px 12px;font-family:var(--mono);font-size:13px;cursor:pointer}
+.chip.on{color:var(--night);border-color:transparent;font-weight:500}
+.chip.on.c1{background:var(--p1);color:var(--ink)}
+.chip.on.c2{background:var(--p2);color:var(--ink)}
+.chip.on.c3{background:var(--p3);color:var(--night)}
+.chip.on.c4{background:var(--p4);color:var(--night)}
+.reset{background:none;border:none;color:var(--muted);font-size:13px;cursor:pointer;text-decoration:underline;padding:8px 0}
+
+/* cards */
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-top:22px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 16px}
+.card .k{font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.card .v{font-family:var(--mono);font-size:26px;font-weight:500;margin-top:2px}
+.card .v em{font-style:normal;font-size:15px;color:var(--muted)}
+
+.chartbox{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:18px;position:relative}
+.legend{display:flex;gap:16px;flex-wrap:wrap;font-family:var(--mono);font-size:12px;color:var(--muted);margin-bottom:10px}
+.legend span{display:flex;align-items:center;gap:6px}
+.sw{width:10px;height:10px;border-radius:2px;display:inline-block}
+
+/* cause bars */
+.cols{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+@media(max-width:760px){.cols{grid-template-columns:1fr}}
+.bars{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px 18px}
+.bars h3{font-size:14px;font-weight:600;margin-bottom:12px}
+.brow{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center;margin:7px 0;font-size:13.5px}
+.bname{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bnum{font-family:var(--mono);font-size:12.5px;color:var(--muted)}
+.bfill{grid-column:1/-1;height:6px;border-radius:3px;background:var(--panel2);overflow:hidden}
+.bfill i{display:block;height:100%;border-radius:3px}
+
+/* tables */
+table{width:100%;border-collapse:collapse;font-size:13.5px}
+th,td{padding:8px 10px;text-align:left;border-bottom:1px solid var(--line);white-space:nowrap}
+td.wide{white-space:normal}
+th{font-family:var(--mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);cursor:pointer;user-select:none}
+th.noclick{cursor:default}
+tr:hover td{background:rgba(141,124,224,.06)}
+.num{font-family:var(--mono);font-size:12.5px}
+.tablebox{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:6px 12px;overflow-x:auto}
+.cdot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:7px;vertical-align:0}
+.warn{background:var(--panel);border:1px solid var(--ember);border-radius:10px;padding:18px;margin-top:30px}
+.foot{margin-top:46px;color:var(--muted);font-size:12.5px;border-top:1px solid var(--line);padding-top:14px}
+#fileFallback{display:none;margin-top:30px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="eyebrow" id="guildLine">käsipainoilla bodaus · Stormreaver EU · Mythic</div>
+  <h1 id="title">Midnight <span class="accent">Falls</span></h1>
+  <div class="sub" id="subtitle">Wipe-tilastot progen ajalta</div>
+
+  <div id="fileFallback" class="warn">
+    <p><strong>wipes.json ei latautunut.</strong> Jos avasit sivun suoraan tiedostona, selain estää paikallisen haun.
+    Valitse tiedosto käsin: <input type="file" id="filePick" accept=".json"></p>
+    <p class="small">GitHub Pagesissa tämä toimii automaattisesti kun wipes.json on samassa kansiossa.</p>
+  </div>
+
+  <div id="app" style="display:none">
+    <h2>Proge — kuinka syvälle fightiin on päästy</h2>
+    <div class="progmap">
+      <div class="track" id="track"></div>
+      <div class="maplegend"><span>pull-start</span><span id="bestLabel"></span><span>kaato</span></div>
+    </div>
+    <p class="small">Jokainen piste on yhden raidi-illan paras pulli. Kultainen piste on tuorein ilta. Phase-rajat on arvioitu datasta.</p>
+
+    <div class="filters">
+      <div class="f"><label for="nightFrom">Alkaen</label><select id="nightFrom"></select></div>
+      <div class="f"><label for="nightTo">Asti</label><select id="nightTo"></select></div>
+      <div class="f"><label>Phase</label>
+        <div class="chips" id="phaseChips"></div>
+      </div>
+      <div class="f"><label for="causeQ">Syyhaku</label><input type="text" id="causeQ" placeholder="esim. starsplinter" size="16"></div>
+      <div class="f"><button class="reset" id="resetBtn">Tyhjennä suodattimet</button></div>
+    </div>
+
+    <div class="cards" id="cards"></div>
+
+    <h2>Wipet phaseittain per ilta</h2>
+    <div class="chartbox">
+      <div class="legend" id="phaseLegend"></div>
+      <div style="position:relative;height:300px"><canvas id="phaseChart"></canvas></div>
+    </div>
+
+    <h2>Wipe-syyt</h2>
+    <div class="cols">
+      <div class="bars"><h3>Wipen aloittajat <span class="small">(ekat 3 kuolemaa)</span></h3><div id="starterBars"></div></div>
+      <div class="bars"><h3>Eniten tappaneet <span class="small">(kaikki kuolemat)</span></h3><div id="killerBars"></div></div>
+    </div>
+
+    <h2>Illat</h2>
+    <div class="tablebox"><table id="nightTable"></table></div>
+
+    <div id="playersSection">
+      <h2>Pelaajat</h2>
+      <div class="filters" style="margin-top:0">
+        <div class="f"><label for="minPulls">Väh. pulleja: <span id="minPullsVal" class="num"></span></label>
+          <input type="range" id="minPulls" min="1" max="200" step="1" value="20" style="width:180px"></div>
+        <div class="f small" id="playersMeta" style="max-width:520px"></div>
+      </div>
+      <div class="tablebox"><table id="playerTable"></table></div>
+      <p class="small">Huom: pullimäärä perustuu kuolemalistaan (mythic-wipessä koko raidi kuolee, joten se toimii läsnäolona).
+      Tilasto ei tunne rooleja — soakkaajat ja kitettäjät kuolevat vastuidensa takia useammin ensimmäisinä.
+      Pelaajasuodattimet eivät reagoi ilta/phase-suodattimiin, koska luvut on laskettu valmiiksi koko datasta.</p>
+    </div>
+
+    <h2>Kaikki wipet</h2>
+    <div class="tablebox"><table id="wipeTable"></table></div>
+  </div>
+
+  <div class="foot" id="foot"></div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script>
+const PHASE_COLORS = {1:'#3d4266',2:'#5a5fa0',3:'#8d7ce0',4:'#deb05a'};
+const CLASS_COLORS = {Warrior:'#C69B6D',Paladin:'#F48CBA',Hunter:'#AAD372',Rogue:'#FFF468',Priest:'#FFFFFF',
+  DeathKnight:'#C41E3A',Shaman:'#0070DD',Mage:'#3FC7EB',Warlock:'#8788EE',Monk:'#00FF98',
+  Druid:'#FF7C0A',DemonHunter:'#A330C9',Evoker:'#33937F'};
+
+let DATA=null, WIPES=[], state={from:null,to:null,phases:new Set(),causeQ:'',minPulls:20,pSort:{key:'first3_per_100_pulls',dir:-1}};
+let phaseChart=null;
+
+function parseFirstDeaths(s){ if(!s) return [];
+  return s.split('; ').map(p=>{const m=p.match(/^(.*) \((.*)\)$/);return m?{player:m[1],cause:m[2]}:null}).filter(Boolean);}
+function parseAllDeaths(s){ if(!s) return [];
+  return s.split('; ').map(p=>{const m=p.match(/^(.*) x(\d+)$/);return m?{cause:m[1],n:+m[2]}:null}).filter(Boolean);}
+
+async function boot(){
+  try{
+    const r=await fetch('wipes.json',{cache:'no-store'});
+    if(!r.ok) throw new Error(r.status);
+    init(await r.json());
+  }catch(e){
+    document.getElementById('fileFallback').style.display='block';
+    document.getElementById('filePick').addEventListener('change',ev=>{
+      const f=ev.target.files[0]; if(!f) return;
+      f.text().then(t=>{document.getElementById('fileFallback').style.display='none';init(JSON.parse(t));});
+    });
+  }
+}
+
+function init(data){
+  DATA=data;
+  WIPES=(data.wipes||[]).map(w=>({...w,night:w.time.slice(0,10),
+    first:parseFirstDeaths(w.first_deaths),all:parseAllDeaths(w.deaths_by_ability),
+    progress:w.fight_pct_left!=null?100-w.fight_pct_left:null}));
+  const boss=WIPES[0]?WIPES[0].boss:'?';
+  const parts=boss.split(' ');
+  document.getElementById('title').innerHTML=parts.length>1
+    ? parts.slice(0,-1).join(' ')+' <span class="accent">'+parts.at(-1)+'</span>' : boss;
+  document.title=boss+' — wipe-tilastot';
+  const diffs=[...new Set(WIPES.map(w=>w.difficulty))].join(', ');
+  document.getElementById('guildLine').textContent='käsipainoilla bodaus · Stormreaver EU · '+diffs;
+
+  const nights=[...new Set(WIPES.map(w=>w.night))].sort();
+  for(const id of ['nightFrom','nightTo']){
+    const sel=document.getElementById(id);
+    sel.innerHTML=nights.map(n=>`<option value="${n}">${n}</option>`).join('');
+    sel.addEventListener('change',()=>{state.from=document.getElementById('nightFrom').value;
+      state.to=document.getElementById('nightTo').value;render();});
+  }
+  document.getElementById('nightTo').value=nights.at(-1);
+  state.from=nights[0]; state.to=nights.at(-1);
+
+  const phases=[...new Set(WIPES.map(w=>w.phase))].sort();
+  const chipBox=document.getElementById('phaseChips');
+  chipBox.innerHTML=phases.map(p=>`<button class="chip c${p}" data-p="${p}">P${p}</button>`).join('');
+  chipBox.querySelectorAll('.chip').forEach(c=>c.addEventListener('click',()=>{
+    const p=+c.dataset.p;
+    state.phases.has(p)?state.phases.delete(p):state.phases.add(p);
+    render();}));
+
+  document.getElementById('causeQ').addEventListener('input',e=>{state.causeQ=e.target.value.toLowerCase();render();});
+  document.getElementById('resetBtn').addEventListener('click',()=>{
+    state.phases.clear();state.causeQ='';document.getElementById('causeQ').value='';
+    state.from=nights[0];state.to=nights.at(-1);
+    document.getElementById('nightFrom').value=nights[0];
+    document.getElementById('nightTo').value=nights.at(-1);render();});
+
+  const mp=document.getElementById('minPulls');
+  if(DATA.players&&DATA.players.length){
+    const maxP=Math.max(...DATA.players.map(p=>p.pulls));
+    mp.max=maxP; state.minPulls=Math.min(20,maxP);
+    mp.value=state.minPulls;
+    mp.addEventListener('input',()=>{state.minPulls=+mp.value;renderPlayers();});
+    const m=DATA.players_meta||{};
+    document.getElementById('playersMeta').textContent=
+      `Ohitettu raid-wide-syyt: ${(m.ignored_causes||[]).join(', ')||'-'} · `+
+      `ohitettu ${m.simul_skipped_wipes??'?'} wipeä joissa koko raidi kuoli ${m.simul_window_s??'?'} s sisään (järjestys mielivaltainen).`;
+  }else{
+    document.getElementById('playersSection').style.display='none';
+  }
+
+  document.getElementById('app').style.display='block';
+  renderProgMap(); render();
+  document.getElementById('foot').textContent=
+    `Data: Warcraft Logs · ${WIPES.length} wipeä · päivitetty ${nights.at(-1)} · sivu ei hae mitään verkosta paitsi wipes.json ja Chart.js`;
+}
+
+function filtered(){
+  return WIPES.filter(w=>
+    w.night>=state.from && w.night<=state.to &&
+    (state.phases.size===0||state.phases.has(w.phase)) &&
+    (!state.causeQ || w.first.some(f=>f.cause.toLowerCase().includes(state.causeQ))
+                   || w.all.some(a=>a.cause.toLowerCase().includes(state.causeQ))));
+}
+
+function renderProgMap(){
+  const withP=WIPES.filter(w=>w.progress!=null);
+  const phases=[...new Set(withP.map(w=>w.phase))].sort((a,b)=>a-b);
+  const bounds=[];
+  let prev=0;
+  phases.forEach((p,i)=>{
+    const maxIn=Math.max(...withP.filter(w=>w.phase===p).map(w=>w.progress));
+    const next=phases[i+1];
+    let end;
+    if(next==null){ end=100; }
+    else{
+      const minNext=Math.min(...withP.filter(w=>w.phase===next).map(w=>w.progress));
+      end=Math.min(100,Math.max(maxIn,(maxIn+minNext)/2));
+    }
+    end=Math.max(end,prev+3);
+    bounds.push({p,start:prev,end}); prev=end;
+  });
+  const track=document.getElementById('track');
+  track.innerHTML=bounds.map(b=>
+    `<div class="seg" style="width:${b.end-b.start}%;background:${PHASE_COLORS[b.p]}22"><span class="lbl" style="color:${PHASE_COLORS[b.p]}">P${b.p}</span></div>`
+  ).join('')+'<div class="kill" title="Kaato"></div>';
+
+  const byNight={};
+  for(const w of withP){ if(!byNight[w.night]||w.progress>byNight[w.night].progress) byNight[w.night]=w; }
+  const nights=Object.keys(byNight).sort();
+  nights.forEach((n,i)=>{
+    const w=byNight[n];
+    const d=document.createElement('div');
+    d.className='dot'+(i===nights.length-1?' latest':'');
+    d.style.left=w.progress+'%';
+    d.title=`${n} — P${w.phase}, boss ${w.boss_hp_pct!=null?w.boss_hp_pct.toFixed(0):'?'}% HP (fight ${w.fight_pct_left.toFixed(1)}% jäljellä)`;
+    track.appendChild(d);
+  });
+  const best=withP.reduce((a,b)=>b.progress>a.progress?b:a);
+  document.getElementById('bestLabel').textContent=
+    `paras: P${best.phase}, boss ${best.boss_hp_pct!=null?best.boss_hp_pct.toFixed(1):'?'}% HP`;
+}
+
+function render(){
+  const W=filtered();
+  const nights=[...new Set(W.map(w=>w.night))].sort();
+
+  const best=W.filter(w=>w.fight_pct_left!=null).sort((a,b)=>a.fight_pct_left-b.fight_pct_left)[0];
+  const deaths=W.reduce((s,w)=>s+(+w.total_deaths||0),0);
+  const avgDur=W.length?Math.round(W.reduce((s,w)=>s+(+w.duration_s||0),0)/W.length):0;
+  document.getElementById('cards').innerHTML=`
+    <div class="card"><div class="k">Wipejä</div><div class="v">${W.length}</div></div>
+    <div class="card"><div class="k">Iltoja</div><div class="v">${nights.length}</div></div>
+    <div class="card"><div class="k">Paras pulli</div><div class="v">${best?`P${best.phase} <em>boss ${best.boss_hp_pct!=null?best.boss_hp_pct.toFixed(0):'?'}% HP</em>`:'-'}</div></div>
+    <div class="card"><div class="k">Kuolemia</div><div class="v">${deaths.toLocaleString('fi')}</div></div>
+    <div class="card"><div class="k">Pullin kesto ka.</div><div class="v">${Math.floor(avgDur/60)}<em>m</em>${String(avgDur%60).padStart(2,'0')}<em>s</em></div></div>`;
+
+  const phases=[...new Set(WIPES.map(w=>w.phase))].sort((a,b)=>a-b);
+  const dsets=phases.map(p=>({label:'P'+p,data:nights.map(n=>W.filter(w=>w.night===n&&w.phase===p).length),
+    backgroundColor:PHASE_COLORS[p],stack:'s'}));
+  document.getElementById('phaseLegend').innerHTML=phases.map(p=>{
+    const tot=W.filter(w=>w.phase===p).length;
+    return `<span><span class="sw" style="background:${PHASE_COLORS[p]}"></span>P${p} · ${tot}</span>`;}).join('');
+  const labels=nights.map(n=>n.slice(8,10)+'.'+String(+n.slice(5,7))+'.');
+  if(phaseChart) phaseChart.destroy();
+  phaseChart=new Chart(document.getElementById('phaseChart'),{type:'bar',
+    data:{labels,datasets:dsets},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false},tooltip:{callbacks:{title:i=>nights[i[0].dataIndex]}}},
+      scales:{x:{stacked:true,ticks:{color:'#8b8fa3',autoSkip:false},grid:{display:false}},
+              y:{stacked:true,ticks:{color:'#8b8fa3'},grid:{color:'#272b40'}}}}});
+
+  const starters={},killers={};
+  for(const w of W){
+    for(const f of w.first) starters[f.cause]=(starters[f.cause]||0)+1;
+    for(const a of w.all) killers[a.cause]=(killers[a.cause]||0)+a.n;
+  }
+  const bars=(obj,el,color,unit)=>{
+    const items=Object.entries(obj).sort((a,b)=>b[1]-a[1]).slice(0,10);
+    const max=items.length?items[0][1]:1;
+    document.getElementById(el).innerHTML=items.map(([k,v])=>
+      `<div class="brow"><span class="bname">${k}</span><span class="bnum">${v.toLocaleString('fi')} ${unit}</span>
+       <span class="bfill"><i style="width:${100*v/max}%;background:${color}"></i></span></div>`).join('')||'<p class="small">Ei osumia.</p>';
+  };
+  bars(starters,'starterBars','var(--ember)','krt');
+  bars(killers,'killerBars','var(--void)','kuolemaa');
+
+  const nrows=nights.map(n=>{
+    const nw=W.filter(w=>w.night===n);
+    const b=nw.filter(w=>w.fight_pct_left!=null).sort((a,b)=>a.fight_pct_left-b.fight_pct_left)[0];
+    const cs={}; nw.forEach(w=>w.first.forEach(f=>cs[f.cause]=(cs[f.cause]||0)+1));
+    const top=Object.entries(cs).sort((a,b)=>b[1]-a[1]).slice(0,3).map(([k,v])=>`${k} (${v})`).join(', ');
+    return `<tr><td class="num">${n}</td><td class="num">${nw.length}</td>
+      <td class="num">${b?`P${b.phase} · ${b.boss_hp_pct!=null?b.boss_hp_pct.toFixed(0):'?'}% HP`:'-'}</td>
+      <td class="wide">${top}</td></tr>`;});
+  document.getElementById('nightTable').innerHTML=
+    `<tr><th class="noclick">Ilta</th><th class="noclick">Pullit</th><th class="noclick">Paras</th><th class="noclick">Top-syyt (ekat 3 kuolemaa)</th></tr>`+nrows.join('');
+
+  const wrows=W.slice().reverse().map(w=>
+    `<tr><td class="num">${w.time}</td><td class="num">P${w.phase}</td>
+     <td class="num">${w.boss_hp_pct!=null?w.boss_hp_pct.toFixed(0)+'%':'-'}</td>
+     <td class="num">${Math.floor(w.duration_s/60)}:${String(w.duration_s%60).padStart(2,'0')}</td>
+     <td class="wide">${w.first.map(f=>`${f.player} <span class="small">(${f.cause})</span>`).join('; ')}</td>
+     <td class="num">${w.total_deaths}</td></tr>`);
+  document.getElementById('wipeTable').innerHTML=
+    `<tr><th class="noclick">Aika</th><th class="noclick">Phase</th><th class="noclick">Boss HP</th><th class="noclick">Kesto</th><th class="noclick">Ekat kuolemat</th><th class="noclick">Kuol.</th></tr>`+wrows.join('');
+
+  renderPlayers();
+}
+
+function renderPlayers(){
+  if(!DATA.players||!DATA.players.length) return;
+  document.getElementById('minPullsVal').textContent=state.minPulls;
+  const cols=[['player','Pelaaja'],['pulls','Pullit'],['first3_deaths','Top3-kuol.'],
+    ['first3_per_100_pulls','Per 100 pullia'],['avg_death_position_pct','Kuolinsija %'],['top_killers','Top-tappajat']];
+  let rows=DATA.players.filter(p=>p.pulls>=state.minPulls);
+  const {key,dir}=state.pSort;
+  rows.sort((a,b)=>{const x=a[key],y=b[key];
+    if(typeof x==='string') return dir*String(x).localeCompare(String(y),'fi');
+    return dir*((x??-1)-(y??-1));});
+  const head=cols.map(([k,label])=>
+    `<th data-k="${k}">${label}${key===k?(dir<0?' ▾':' ▴'):''}</th>`).join('');
+  const body=rows.map(p=>{
+    const c=CLASS_COLORS[p.class]||'#8b8fa3';
+    return `<tr><td><span class="cdot" style="background:${c}"></span>${p.player}</td>
+      <td class="num">${p.pulls}</td><td class="num">${p.first3_deaths}</td>
+      <td class="num">${p.first3_per_100_pulls.toFixed(1)}</td>
+      <td class="num">${p.avg_death_position_pct!=null?p.avg_death_position_pct.toFixed(0):'-'}</td>
+      <td class="wide small">${p.top_killers||''}</td></tr>`;}).join('');
+  const t=document.getElementById('playerTable');
+  t.innerHTML=`<tr>${head}</tr>${body}`;
+  t.querySelectorAll('th[data-k]').forEach(th=>th.addEventListener('click',()=>{
+    const k=th.dataset.k;
+    state.pSort=state.pSort.key===k?{key:k,dir:-state.pSort.dir}:{key:k,dir:-1};
+    renderPlayers();}));
+}
+
+boot();
+</script>
+</body>
+</html>
