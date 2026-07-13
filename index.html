@@ -207,7 +207,9 @@ async function boot(){
 
 function bossPlayers(){
   if(DATA.players_by_boss) return DATA.players_by_boss[state.boss]||[];
-  return DATA.players||[];
+  const ps=DATA.players||[];
+  if(ps.length&&ps[0].boss!==undefined) return ps.filter(p=>p.boss===state.boss);
+  return ps;
 }
 
 function bossWipes(){ return WIPES.filter(w=>w.boss===state.boss); }
