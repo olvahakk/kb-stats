@@ -248,8 +248,8 @@ function init(data){
 
   const m=DATA.players_meta||{};
   document.getElementById('playersMeta').textContent=
-    `Ohitettu raid-wide-syyt: ${(m.ignored_causes||[]).join(', ')||'-'} · `+
-    `ohitettu ${m.simul_skipped_wipes??'?'} wipeä joissa koko raidi kuoli ${m.simul_window_s??'?'} s sisään (järjestys mielivaltainen).`;
+    `Tilastosta on ohitettu ${m.simul_skipped_wipes??'?'} wipeä, joissa koko raidi kuoli ${m.simul_window_s??'?'} s sisään `+
+    `(kuolemajärjestys niissä on mielivaltainen). Raid-wide-syyt kuten Light's End ovat oletuksena pois päältä - klikkaa chippiä jos haluat sen mukaan.`;
   document.getElementById('minPulls').addEventListener('input',e=>{
     state.minPulls=+e.target.value;renderPlayers();});
 
