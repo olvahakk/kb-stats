@@ -51,6 +51,7 @@ select:focus,input:focus,button:focus{outline:2px solid var(--void);outline-offs
 .chip.on.c4{background:var(--p4);color:var(--night)}
 .chip.ex{opacity:.4;text-decoration:line-through}
 tr.nrow{cursor:pointer}
+th .info{color:var(--void);font-size:11px;margin-left:3px;cursor:help}
 .chev{user-select:none;color:var(--muted);width:20px}
 .ndbox{padding:8px 4px 14px;border-left:2px solid var(--line);margin:2px 0 6px 4px}
 #causeChips{display:flex;flex-wrap:wrap;gap:6px;max-width:100%}
@@ -575,15 +576,20 @@ function renderPlayers(){
   const players=bossPlayers();
   if(!players.length) return;
   document.getElementById('minPullsVal').textContent=state.minPulls;
-  const cols=[['player','Pelaaja'],['pulls','Pullit'],['first3_deaths','Top3-kuol.'],
-    ['first3_per_100_pulls','Per 100 pullia'],['avg_death_position_pct','Kuolinsija %'],['top_killers','Top-tappajat']];
+  const cols=[
+    ['player','Pelaaja','Pelaajan nimi. Pisteen väri on WoW-luokan väri.'],
+    ['pulls','Pullit','Monessako wipessä pelaaja oli mukana. Läsnäolo päätellään kuolemalistasta - mythic-wipessä käytännössä koko raidi kuolee, joten se toimii läsnäolona.'],
+    ['first3_deaths','Top3-kuol.','Monestiko pelaaja oli pullin kolmen ensimmäisen kuolleen joukossa. Ei laske poissuljettuja syitä (chipit) eikä wipejä joissa koko raidi kuoli kerralla.'],
+    ['first3_per_100_pulls','Per 100 pullia','Top3-kuolemat suhteutettuna sataan pulliin - reilu vertailuluku, vaikka pelaajat ovat olleet mukana eri määrässä pulleja.'],
+    ['avg_death_position_pct','Kuolinsija %','Keskimääräinen sijainti pullin kuolemajonossa: 0 = kuolee aina ensimmäisenä, 100 = aina viimeisenä. Isompi on parempi. Laskettu koko datasta - ei reagoi syychippeihin.'],
+    ['top_killers','Top-tappajat','Syyt joihin pelaajan varhaiset (top3) kuolemat useimmin osuivat.']];
   let rows=computePlayerRows().filter(p=>p.pulls>=state.minPulls);
   const {key,dir}=state.pSort;
   rows.sort((a,b)=>{const x=a[key],y=b[key];
     if(typeof x==='string') return dir*String(x).localeCompare(String(y),'fi');
     return dir*((x??-1)-(y??-1));});
-  const head=cols.map(([k,label])=>
-    `<th data-k="${k}">${label}${key===k?(dir<0?' ▾':' ▴'):''}</th>`).join('');
+  const head=cols.map(([k,label,tip])=>
+    `<th data-k="${k}" title="${tip.replace(/"/g,'&quot;')}">${label}<span class="info">ⓘ</span>${key===k?(dir<0?' ▾':' ▴'):''}</th>`).join('');
   const body=rows.map(p=>{
     const c=CLASS_COLORS[p.class]||'#8b8fa3';
     return `<tr><td><span class="cdot" style="background:${c}"></span>${p.player}</td>
