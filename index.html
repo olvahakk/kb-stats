@@ -137,7 +137,7 @@ tr:hover td{background:rgba(141,124,224,.06)}
     <h2>Wipe-syyt</h2>
     <div class="cols">
       <div class="bars"><h3>Wipen aloittajat <span class="small">(ekat 3 kuolemaa)</span></h3><div id="starterBars"></div></div>
-      <div class="bars"><h3>Eniten tappaneet <span class="small">(kaikki kuolemat)</span></h3><div id="killerBars"></div></div>
+      <div class="bars"><h3>Eniten tappaneet <span class="small">(ilman rysäys-/reset-kuolemia)</span></h3><div id="killerBars"></div></div>
     </div>
 
     <h2>Raidit</h2>
@@ -248,9 +248,13 @@ function init(data){
     document.getElementById('nightTo').value=nights.at(-1);render();});
 
   const m=DATA.players_meta||{};
-  document.getElementById('playersMeta').textContent=
-    `Tilastosta on ohitettu ${m.simul_skipped_wipes??'?'} wipeä, joissa koko raidi kuoli ${m.simul_window_s??'?'} s sisään `+
-    `(kuolemajärjestys niissä on mielivaltainen). Raid-wide-syyt kuten Light's End ovat oletuksena pois päältä - klikkaa chippiä jos haluat sen mukaan.`;
+  document.getElementById('playersMeta').textContent = m.burst_size!=null
+    ? `Wipen aloittajiksi lasketaan vain kuolemat, jotka eivät olleet osa massarysäystä `+
+      `(vähintään ${m.burst_size} kuolemaa ${m.burst_window_s} s sisällä - järjestys rysäyksessä on mielivaltainen). `+
+      `${m.fully_burst_wipes??0} wipeä oli pelkkää rysäystä, eikä niistä tilastoitu ketään. `+
+      `Raid-wide-syyt kuten Light's End ovat oletuksena pois päältä - klikkaa chippiä jos haluat sen mukaan.`
+    : `Tilastosta on ohitettu ${m.simul_skipped_wipes??'?'} wipeä, joissa koko raidi kuoli ${m.simul_window_s??'?'} s sisään. `+
+      `Raid-wide-syyt kuten Light's End ovat oletuksena pois päältä - klikkaa chippiä jos haluat sen mukaan.`;
   document.getElementById('minPulls').addEventListener('input',e=>{
     state.minPulls=+e.target.value;renderPlayers();});
 
@@ -581,7 +585,7 @@ function renderPlayers(){
     ['pulls','Pullit','Monessako wipessä pelaaja oli mukana. Läsnäolo päätellään kuolemalistasta - mythic-wipessä käytännössä koko raidi kuolee, joten se toimii läsnäolona.'],
     ['first3_deaths','Top3-kuol.','Monestiko pelaaja oli pullin kolmen ensimmäisen kuolleen joukossa. Ei laske poissuljettuja syitä (chipit) eikä wipejä joissa koko raidi kuoli kerralla.'],
     ['first3_per_100_pulls','Per 100 pullia','Top3-kuolemat suhteutettuna sataan pulliin - reilu vertailuluku, vaikka pelaajat ovat olleet mukana eri määrässä pulleja.'],
-    ['avg_death_position_pct','Kuolinsija %','Keskimääräinen sijainti pullin kuolemajonossa: 0 = kuolee aina ensimmäisenä, 100 = aina viimeisenä. Isompi on parempi. Laskettu koko datasta - ei reagoi syychippeihin.'],
+    ['avg_death_position_pct','Kuolinsija %','Keskimääräinen sijainti pullin attribuoitavien kuolemien jonossa (rysäys- ja reset-kuolemia ei lasketa): 0 = kuolee aina ensimmäisenä, 100 = aina viimeisenä. Isompi on parempi. Ei reagoi syychippeihin.'],
     ['top_killers','Top-tappajat','Syyt joihin pelaajan varhaiset (top3) kuolemat useimmin osuivat.']];
   let rows=computePlayerRows().filter(p=>p.pulls>=state.minPulls);
   const {key,dir}=state.pSort;
