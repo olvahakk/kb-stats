@@ -50,6 +50,9 @@ select:focus,input:focus,button:focus{outline:2px solid var(--void);outline-offs
 .chip.on.c3{background:var(--p3);color:var(--night)}
 .chip.on.c4{background:var(--p4);color:var(--night)}
 .chip.ex{opacity:.4;text-decoration:line-through}
+tr.nrow{cursor:pointer}
+.chev{user-select:none;color:var(--muted);width:20px}
+.ndbox{padding:8px 4px 14px;border-left:2px solid var(--line);margin:2px 0 6px 4px}
 #causeChips{display:flex;flex-wrap:wrap;gap:6px;max-width:100%}
 .reset{background:none;border:none;color:var(--muted);font-size:13px;cursor:pointer;text-decoration:underline;padding:8px 0}
 
@@ -109,7 +112,7 @@ tr:hover td{background:rgba(141,124,224,.06)}
       <div class="track" id="track"></div>
       <div class="maplegend"><span>pull-start</span><span id="bestLabel"></span><span>kaato</span></div>
     </div>
-    <p class="small">Jokainen piste on yhden raidi-illan paras pulli. Kultainen piste on tuorein ilta. Phase-rajat on arvioitu datasta.</p>
+    <p class="small">Jokainen piste on yhden raidin paras pulli. Kultainen piste on tuorein raidi. Phase-rajat on arvioitu datasta.</p>
 
     <div class="filters">
       <div class="f"><label for="bossSel">Bossi</label><select id="bossSel"></select></div>
@@ -136,7 +139,7 @@ tr:hover td{background:rgba(141,124,224,.06)}
       <div class="bars"><h3>Eniten tappaneet <span class="small">(kaikki kuolemat)</span></h3><div id="killerBars"></div></div>
     </div>
 
-    <h2>Illat</h2>
+    <h2>Raidit</h2>
     <div class="tablebox"><table id="nightTable"></table></div>
 
     <div id="playersSection">
@@ -151,7 +154,7 @@ tr:hover td{background:rgba(141,124,224,.06)}
       <div class="tablebox"><table id="playerTable"></table></div>
       <p class="small">Huom: pullimäärä perustuu kuolemalistaan (mythic-wipessä koko raidi kuolee, joten se toimii läsnäolona).
       Tilasto ei tunne rooleja — soakkaajat ja kitettäjät kuolevat vastuidensa takia useammin ensimmäisinä.
-      Pelaajasuodattimet eivät reagoi ilta/phase-suodattimiin, koska luvut on laskettu valmiiksi koko datasta.</p>
+      Pelaajasuodattimet eivät reagoi raidi/phase-suodattimiin, koska luvut on laskettu valmiiksi koko datasta.</p>
     </div>
 
     <h2>Kaikki wipet</h2>
@@ -184,7 +187,7 @@ function syncHash(){
   history.replaceState(null,'','#'+h.join('&'));
 }
 let DATA=null, WIPES=[], state={boss:null,from:null,to:null,phases:new Set(),causeQ:'',minPulls:20,pSort:{key:'first3_per_100_pulls',dir:-1},wSort:{key:'time',dir:1},exCauses:new Set()};
-let phaseChart=null;
+let phaseChart=null, nightCharts=[];
 
 function parseFirstDeaths(s){ if(!s) return [];
   return s.split('; ').map(p=>{const m=p.match(/^(.*) \((.*)\)$/);return m?{player:m[1],cause:m[2]}:null}).filter(Boolean);}
@@ -216,9 +219,17 @@ function bossWipes(){ return WIPES.filter(w=>w.boss===state.boss); }
 
 function init(data){
   DATA=data;
-  WIPES=(data.wipes||[]).map(w=>({...w,night:w.time.slice(0,10),
+  WIPES=(data.wipes||[]).map(w=>({...w,ts:new Date(w.time.replace(' ','T')).getTime(),
     first:parseFirstDeaths(w.first_deaths),all:parseAllDeaths(w.deaths_by_ability),
     progress:w.fight_pct_left!=null?100-w.fight_pct_left:null}));
+  {
+    const sorted=[...WIPES].sort((a,b)=>a.ts-b.ts);
+    let label=null, prev=-Infinity;
+    for(const w of sorted){
+      if(w.ts-prev>6*3600*1000) label=w.time.slice(0,10);
+      prev=w.ts; w.night=label;
+    }
+  }
 
   const counts={};
   WIPES.forEach(w=>counts[w.boss]=(counts[w.boss]||0)+1);
@@ -369,7 +380,7 @@ function render(){
   const avgDur=W.length?Math.round(W.reduce((s,w)=>s+(+w.duration_s||0),0)/W.length):0;
   document.getElementById('cards').innerHTML=`
     <div class="card"><div class="k">Wipejä</div><div class="v">${W.length}</div></div>
-    <div class="card"><div class="k">Iltoja</div><div class="v">${nights.length}</div></div>
+    <div class="card"><div class="k">Raideja</div><div class="v">${nights.length}</div></div>
     <div class="card"><div class="k">Paras pulli</div><div class="v">${best?`P${best.phase} <em>boss ${best.boss_hp_pct!=null?best.boss_hp_pct.toFixed(0):'?'}% HP</em>`:'-'}</div></div>
     <div class="card"><div class="k">Kuolemia</div><div class="v">${deaths.toLocaleString('fi')}</div></div>
     <div class="card"><div class="k">Pullin kesto ka.</div><div class="v">${Math.floor(avgDur/60)}<em>m</em>${String(avgDur%60).padStart(2,'0')}<em>s</em></div></div>`;
@@ -405,20 +416,86 @@ function render(){
   bars(starters,'starterBars','var(--ember)','krt');
   bars(killers,'killerBars','var(--void)','kuolemaa');
 
-  const nrows=nights.map(n=>{
-    const nw=W.filter(w=>w.night===n);
-    const b=nw.filter(w=>w.fight_pct_left!=null).sort((a,b)=>a.fight_pct_left-b.fight_pct_left)[0];
-    const cs={}; nw.forEach(w=>w.first.forEach(f=>cs[f.cause]=(cs[f.cause]||0)+1));
-    const top=Object.entries(cs).sort((a,b)=>b[1]-a[1]).slice(0,3).map(([k,v])=>`${k} (${v})`).join(', ');
-    return `<tr><td class="num">${n}</td><td class="num">${nw.length}</td>
-      <td class="num">${b?`P${b.phase} · ${b.boss_hp_pct!=null?b.boss_hp_pct.toFixed(0):'?'}% HP`:'-'}</td>
-      <td class="wide">${top}</td></tr>`;});
-  document.getElementById('nightTable').innerHTML=
-    `<tr><th class="noclick">Ilta</th><th class="noclick">Pullit</th><th class="noclick">Paras</th><th class="noclick">Top-syyt (ekat 3 kuolemaa)</th></tr>`+nrows.join('');
+  renderNightTable(W,nights);
 
   renderWipeTable(W);
   renderPlayers();
   syncHash();
+}
+
+function renderNightTable(W,nights){
+  nightCharts.forEach(c=>c.destroy()); nightCharts=[];
+  const t=document.getElementById('nightTable');
+  const head=`<tr><th class="noclick"></th><th class="noclick">Raidi</th><th class="noclick">Pullit</th><th class="noclick">Paras</th><th class="noclick">Top-syyt (ekat 3 kuolemaa)</th></tr>`;
+  const rows=nights.map((n,i)=>{
+    const nw=W.filter(w=>w.night===n);
+    const b=nw.filter(w=>w.fight_pct_left!=null).sort((a,b)=>a.fight_pct_left-b.fight_pct_left)[0];
+    const cs={}; nw.forEach(w=>w.first.forEach(f=>cs[f.cause]=(cs[f.cause]||0)+1));
+    const top=Object.entries(cs).sort((a,b)=>b[1]-a[1]).slice(0,3).map(([k,v])=>`${k} (${v})`).join(', ');
+    return `<tr class="nrow" data-n="${n}" data-i="${i}"><td class="num chev">▸</td><td class="num">${n}</td><td class="num">${nw.length}</td>
+      <td class="num">${b?`P${b.phase} · ${b.boss_hp_pct!=null?b.boss_hp_pct.toFixed(0):'?'}% HP`:'-'}</td>
+      <td class="wide">${top}</td></tr>
+      <tr class="ndetail" data-n="${n}" style="display:none"><td colspan="5"><div class="ndbox" id="nd-${i}"></div></td></tr>`;});
+  t.innerHTML=head+rows.join('');
+  t.querySelectorAll('tr.nrow').forEach(tr=>tr.addEventListener('click',()=>{
+    const n=tr.dataset.n, i=tr.dataset.i;
+    const det=t.querySelector(`tr.ndetail[data-n="${n}"]`);
+    const isOpen=det.style.display!=='none';
+    det.style.display=isOpen?'none':'';
+    tr.querySelector('.chev').textContent=isOpen?'▸':'▾';
+    if(!isOpen){
+      const box=document.getElementById('nd-'+i);
+      if(!box.dataset.done){ populateNight(box, W.filter(w=>w.night===n)); box.dataset.done='1'; }
+    }
+  }));
+}
+
+function populateNight(box,nw){
+  const pcolor=p=>PHASE_COLORS[Math.min(p,4)]||'#8b8fa3';
+  box.innerHTML=`<div style="position:relative;height:180px;margin:6px 0 14px"><canvas></canvas></div><table></table>`;
+  const fp=nw.map(w=>w.fight_pct_left);
+  let best=Infinity;
+  const recIdx=new Set(), recData=fp.map((v,i)=>{
+    if(v!=null&&v<best){best=v;recIdx.add(i);}
+    return best===Infinity?null:best;});
+  const recLabel=i=>{const w=nw[i];
+    return (w.boss_hp_pct!=null?w.boss_hp_pct.toFixed(1)+'%':'')+' P'+w.phase;};
+  const labelPlugin={id:'recLabels',afterDatasetsDraw(chart){
+    const ctx=chart.ctx, meta=chart.getDatasetMeta(1);
+    ctx.save();ctx.font='10px IBM Plex Mono, monospace';ctx.fillStyle='#e9e4d6';
+    for(const i of recIdx){
+      const el=meta.data[i]; if(!el) continue;
+      ctx.fillText(recLabel(i), el.x+6, el.y-6);
+    }
+    ctx.restore();}};
+  const chart=new Chart(box.querySelector('canvas'),{type:'line',
+    data:{labels:nw.map((w,i)=>i+1),
+      datasets:[
+        {data:fp,borderColor:'#3d4a6b',borderWidth:1.5,pointRadius:0,tension:0,spanGaps:true},
+        {data:recData,stepped:true,borderColor:'#deb05a',borderWidth:2,spanGaps:true,
+         pointRadius:nw.map((w,i)=>recIdx.has(i)?4:0),
+         pointBackgroundColor:nw.map(w=>pcolor(w.phase)),
+         pointBorderColor:'#deb05a'}]},
+    plugins:[labelPlugin],
+    options:{responsive:true,maintainAspectRatio:false,layout:{padding:{right:56,top:14}},
+      plugins:{legend:{display:false},tooltip:{callbacks:{
+        title:c=>'Pulli '+c[0].label+' · '+nw[c[0].dataIndex].time.slice(11),
+        label:c=>{const w=nw[c.dataIndex];
+          return `P${w.phase} · boss ${w.boss_hp_pct!=null?w.boss_hp_pct.toFixed(0):'?'}% HP`
+            +(w.fight_pct_left!=null?` · fight ${w.fight_pct_left.toFixed(1)}% jäljellä`:'');}}}},
+      scales:{x:{ticks:{color:'#8b8fa3'},grid:{display:false},
+                 title:{display:true,text:'pulli',color:'#8b8fa3',font:{size:11}}},
+              y:{min:0,max:100,ticks:{color:'#8b8fa3',callback:v=>v+'%'},grid:{color:'#272b40'},
+                 title:{display:true,text:'fight % jäljellä',color:'#8b8fa3',font:{size:11}}}}}});
+  nightCharts.push(chart);
+  const rows=nw.map(w=>
+    `<tr><td class="num">${w.time.slice(11)}</td><td class="num">P${w.phase}</td>
+     <td class="num">${w.boss_hp_pct!=null?w.boss_hp_pct.toFixed(0)+'%':'-'}</td>
+     <td class="num">${Math.floor(w.duration_s/60)}:${String(w.duration_s%60).padStart(2,'0')}</td>
+     <td class="wide">${w.first.map(f=>`${f.player} <span class="small">(${f.cause})</span>`).join('; ')}</td>
+     <td class="num"><a href="${wclUrl(w)}" target="_blank" rel="noopener">WCL ↗</a></td></tr>`).join('');
+  box.querySelector('table').innerHTML=
+    `<tr><th class="noclick">Klo</th><th class="noclick">Phase</th><th class="noclick">Boss HP</th><th class="noclick">Kesto</th><th class="noclick">Ekat kuolemat</th><th class="noclick">Logi</th></tr>`+rows;
 }
 
 function wclUrl(w){
