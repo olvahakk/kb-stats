@@ -123,6 +123,7 @@ tr:hover td{background:rgba(141,124,224,.06)}
         <div class="chips" id="phaseChips"></div>
       </div>
       <div class="f"><label for="causeQ">Haku (syy tai pelaaja)</label><input type="text" id="causeQ" placeholder="esim. starsplinter" size="16"></div>
+      <div class="f"><label for="fromPull">Pullista alkaen</label><input type="number" id="fromPull" min="1" placeholder="1" style="width:80px;background:var(--panel2);color:var(--ink);border:1px solid var(--line);border-radius:6px;padding:7px 10px;font-family:var(--mono);font-size:14px"></div>
       <div class="f"><button class="reset" id="resetBtn">Tyhjennä suodattimet</button></div>
     </div>
 
@@ -153,9 +154,7 @@ tr:hover td{background:rgba(141,124,224,.06)}
         <div class="f small" id="playersMeta" style="max-width:520px"></div>
       </div>
       <div class="tablebox"><table id="playerTable"></table></div>
-      <p class="small">Huom: pullimäärä perustuu kuolemalistaan (mythic-wipessä koko raidi kuolee, joten se toimii läsnäolona).
-      Tilasto ei tunne rooleja — soakkaajat ja kitettäjät kuolevat vastuidensa takia useammin ensimmäisinä.
-      Pelaajasuodattimet eivät reagoi raidi/phase-suodattimiin, koska luvut on laskettu valmiiksi koko datasta.</p>
+      <p class="small" id="playersNote"></p>
     </div>
 
     <h2>Kaikki wipet</h2>
@@ -184,10 +183,11 @@ function syncHash(){
   const h=['boss='+encodeURIComponent(state.boss)];
   if(state.phases.size) h.push('p='+[...state.phases].join(','));
   if(state.causeQ) h.push('q='+encodeURIComponent(state.causeQ));
+  if(state.fromPull) h.push('fp='+state.fromPull);
   h.push('from='+state.from,'to='+state.to);
   history.replaceState(null,'','#'+h.join('&'));
 }
-let DATA=null, WIPES=[], state={boss:null,from:null,to:null,phases:new Set(),causeQ:'',minPulls:20,pSort:{key:'first3_per_100_pulls',dir:-1},wSort:{key:'time',dir:1},exCauses:new Set()};
+let DATA=null, WIPES=[], state={boss:null,from:null,to:null,fromPull:null,phases:new Set(),causeQ:'',minPulls:20,pSort:{key:'first3_per_100_pulls',dir:-1},wSort:{key:'time',dir:1},exCauses:new Set()};
 let phaseChart=null, nightCharts=[];
 
 function parseFirstDeaths(s){ if(!s) return [];
@@ -240,8 +240,12 @@ function init(data){
   bs.addEventListener('change',()=>setBoss(bs.value));
 
   document.getElementById('causeQ').addEventListener('input',e=>{state.causeQ=e.target.value.toLowerCase();render();});
+  document.getElementById('fromPull').addEventListener('input',e=>{
+    const v=parseInt(e.target.value,10);
+    state.fromPull=Number.isFinite(v)&&v>1?v:null;render();});
   document.getElementById('resetBtn').addEventListener('click',()=>{
     state.phases.clear();state.causeQ='';document.getElementById('causeQ').value='';
+    state.fromPull=null;document.getElementById('fromPull').value='';
     const nights=[...new Set(bossWipes().map(w=>w.night))].sort();
     state.from=nights[0];state.to=nights.at(-1);
     document.getElementById('nightFrom').value=nights[0];
@@ -271,15 +275,20 @@ function init(data){
     if(h.to&&nights2.includes(h.to)){state.to=h.to;document.getElementById('nightTo').value=h.to;}
     if(h.p) h.p.split(',').forEach(x=>state.phases.add(+x));
     if(h.q){state.causeQ=h.q.toLowerCase();document.getElementById('causeQ').value=h.q;}
+    if(h.fp&&+h.fp>1){state.fromPull=+h.fp;document.getElementById('fromPull').value=h.fp;}
     render();
   }
 }
 
 function setBoss(boss){
   state.boss=boss;
-  state.phases.clear(); state.causeQ='';
+  state.phases.clear(); state.causeQ=''; state.fromPull=null;
   document.getElementById('causeQ').value='';
+  document.getElementById('fromPull').value='';
   const BW=bossWipes();
+  BW.slice().sort((a,b)=>a.ts-b.ts).forEach((w,i)=>w.pullIdx=i+1);
+  document.getElementById('fromPull').max=BW.length;
+  document.getElementById('fromPull').placeholder='1-'+BW.length;
 
   const parts=boss.split(' ');
   document.getElementById('title').innerHTML=parts.length>1
@@ -309,13 +318,20 @@ function setBoss(boss){
     render();}));
 
   const players=bossPlayers();
+  const full=hasFullPlayerData();
   const psec=document.getElementById('playersSection');
-  if(players.length){
+  if(full||players.length){
     psec.style.display='block';
     const mp=document.getElementById('minPulls');
-    const maxP=Math.max(...players.map(p=>p.pulls));
+    const maxP=full?BW.length:Math.max(...players.map(p=>p.pulls));
     mp.max=maxP; state.minPulls=Math.min(20,maxP); mp.value=state.minPulls;
     buildCauseChips();
+    document.getElementById('playersNote').textContent=
+      'Huom: pullimäärä perustuu kuolemalistaan (mythic-wipessä koko raidi kuolee, joten se toimii läsnäolona). '
+      +'Tilasto ei tunne rooleja - soakkaajat ja kitettäjät kuolevat vastuidensa takia useammin ensimmäisinä. '
+      +(full
+        ?'Pelaajataulukko noudattaa yllä olevia suodattimia (raidit, phase, haku, pullista alkaen).'
+        :'Pelaajasuodattimet eivät reagoi raidi/phase-suodattimiin, koska luvut on laskettu valmiiksi koko datasta.');
   }else{
     psec.style.display='none';
   }
@@ -327,6 +343,7 @@ function setBoss(boss){
 function filtered(){
   return WIPES.filter(w=>
     w.boss===state.boss &&
+    (!state.fromPull || w.pullIdx>=state.fromPull) &&
     w.night>=state.from && w.night<=state.to &&
     (state.phases.size===0||state.phases.has(w.phase)) &&
     (!state.causeQ || w.first.some(f=>f.cause.toLowerCase().includes(state.causeQ)
@@ -509,7 +526,7 @@ function wclUrl(w){
 }
 
 function renderWipeTable(W){
-  const cols=[['time','Aika'],['phase','Phase'],['boss_hp_pct','Boss HP'],['duration_s','Kesto'],['_first','Ekat kuolemat'],['_wcl','Logi']];
+  const cols=[['pullIdx','#'],['time','Aika'],['phase','Phase'],['boss_hp_pct','Boss HP'],['duration_s','Kesto'],['_first','Ekat kuolemat'],['_wcl','Logi']];
   const {key,dir}=state.wSort;
   const rows=W.slice().sort((a,b)=>{
     const x=a[key],y=b[key];
@@ -519,7 +536,7 @@ function renderWipeTable(W){
     ? `<th class="noclick">${label}</th>`
     : `<th data-k="${k}">${label}${key===k?(dir<0?' ▾':' ▴'):''}</th>`).join('');
   const body=rows.map(w=>
-    `<tr><td class="num">${w.time}</td><td class="num">P${w.phase}</td>
+    `<tr><td class="num">${w.pullIdx??''}</td><td class="num">${w.time}</td><td class="num">P${w.phase}</td>
      <td class="num">${w.boss_hp_pct!=null?w.boss_hp_pct.toFixed(0)+'%':'-'}</td>
      <td class="num">${Math.floor(w.duration_s/60)}:${String(w.duration_s%60).padStart(2,'0')}</td>
      <td class="wide">${w.first.map(f=>`${f.player} <span class="small">(${f.cause})</span>`).join('; ')}</td>
@@ -552,7 +569,43 @@ function buildCauseChips(){
     renderPlayers();}));
 }
 
+function hasFullPlayerData(){
+  const BW=bossWipes();
+  return BW.length>0 && BW[0].att_order!==undefined;
+}
+
 function computePlayerRows(){
+  if(hasFullPlayerData()){
+    // Täysi data: laske kaikki suodatetuista wipeistä
+    const stats={};
+    for(const w of filtered()){
+      for(const n of (w.players||[])){
+        (stats[n]=stats[n]||{pulls:0,first3:0,osum:0,on:0,mechs:{}}).pulls++;
+      }
+      const ao=w.att_order||[];
+      ao.forEach((n,i)=>{
+        const st=stats[n]; if(!st) return;
+        if(ao.length>1){st.osum+=i/(ao.length-1);st.on++;}
+      });
+      for(const f of w.first){
+        if(state.exCauses.has(f.cause)) continue;
+        const st=stats[f.player]; if(!st) continue;
+        st.first3++;
+        st.mechs[f.cause]=(st.mechs[f.cause]||0)+1;
+      }
+    }
+    return Object.entries(stats).map(([name,st])=>({
+      player:name,
+      class:(DATA.player_classes||{})[name]||'',
+      pulls:st.pulls,
+      first3_deaths:st.first3,
+      first3_per_100_pulls:st.pulls?Math.round(1000*st.first3/st.pulls)/10:0,
+      avg_death_position_pct:st.on?Math.round(1000*st.osum/st.on)/10:null,
+      top_killers:Object.entries(st.mechs).sort((a,b)=>b[1]-a[1]).slice(0,3)
+        .map(([k,v])=>`${k} x${v}`).join('; ')}));
+  }
+
+  // Vanha data: valmiiksi lasketut rivit, vain syychipit vaikuttavat
   const players=bossPlayers();
   const hasSimul=bossWipes().some(w=>'simul' in w);
   if(!hasSimul) return players;
@@ -577,8 +630,7 @@ function computePlayerRows(){
 }
 
 function renderPlayers(){
-  const players=bossPlayers();
-  if(!players.length) return;
+  if(!hasFullPlayerData()&&!bossPlayers().length) return;
   document.getElementById('minPullsVal').textContent=state.minPulls;
   const cols=[
     ['player','Pelaaja','Pelaajan nimi. Pisteen väri on WoW-luokan väri.'],
